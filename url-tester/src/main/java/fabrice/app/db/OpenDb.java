@@ -1,4 +1,4 @@
-package fabrice.app;
+package fabrice.app.db;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -10,7 +10,7 @@ import java.util.*;
  * @author Fabrice Hong -- Liip AG
  * @date 03.09.15
  */
-public class ExportDb {
+public class OpenDb {
 
     private String dbms = "mysql";
     private String serverName = "localhost";
@@ -21,7 +21,7 @@ public class ExportDb {
 
     private Connection connection;
 
-    public ExportDb() {
+    public OpenDb() {
         try {
             connection = connect();
         } catch (SQLException e) {
@@ -49,7 +49,7 @@ public class ExportDb {
             conn = DriverManager.getConnection(
                     "jdbc:" + this.dbms + "://" +
                             this.serverName +
-                            ":" + this.portNumber + "/",
+                            ":" + this.portNumber + "/" + this.dbName,
                     connectionProps);
         } else if (this.dbms.equals("derby")) {
             conn = DriverManager.getConnection(
@@ -62,7 +62,7 @@ public class ExportDb {
         return conn;
     }
 
-    public List<Map> viewTable(String query)
+    public List<Map> getResults(String query)
             throws SQLException {
 
         List<Map> resultList = new ArrayList<Map>();
@@ -139,7 +139,7 @@ public class ExportDb {
 
     public static void main(String[] args) throws SQLException, IOException {
 
-        ExportDb exportDb = new ExportDb();
+        OpenDb openDb = new OpenDb();
         String query = "SELECT\n" +
                 "    opendata.newTable.Model,\n" +
                 "    opendata.newTable.Line1,\n" +
@@ -151,12 +151,38 @@ public class ExportDb {
                 "ON\n" +
                 "    (\n" +
                 "        opendata.newTable.Model = opendata.otherTable.Modelr) ;";
-        List<Map> maps = exportDb.viewTable(query);
+        List<Map> maps = openDb.getResults(query);
 
         ObjectMapper objectMapper = new ObjectMapper();
 
         String s = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(maps);
         System.out.println(s);
 
+    }
+
+    public void createTable(SqlTable table) {
+        try {
+            Statement statement = connection.createStatement();
+            String tableSql = table.createTableSql();
+            System.out.println(tableSql);
+            statement.executeUpdate(tableSql);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void insertInTable(SqlTable table, String[] row) {
+        int colSize = table.getColumns().size();
+        if (colSize !=row.length) {
+            throw new RuntimeException(String.format("The row have not the same size as expected. Table columns : %s, %s\nrow : %s, %s", colSize, table.getColumns(), row.length, Arrays.asList(row)));
+        }
+        try {
+            Statement statement = connection.createStatement();
+            String sql = table.insertSql(row);
+            System.out.println(sql);
+            statement.executeUpdate(sql);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
